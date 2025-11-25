@@ -1,14 +1,13 @@
-// node-backend/server.js
-
 const express = require('express');
 const dotenv = require('dotenv');
 const path = require('path');
 const { google } = require('googleapis');
+// NOVO: Importa OAuth2Client para autenticação com Refresh Token
+const { OAuth2Client } = require('google-auth-library'); 
 const { BlobServiceClient } = require('@azure/storage-blob');
 const { Readable } = require('stream');
-const cors = require('cors'); // Adicionado para CORS mais robusto
+const cors = require('cors'); 
 
-// Carrega variáveis de ambiente do arquivo .env (para uso local)
 dotenv.config();
 
 const app = express();
@@ -17,8 +16,12 @@ const PORT = process.env.PORT || 5000;
 // Configurações e Variáveis
 const AZURE_STORAGE_CONNECTION_STRING = process.env.AZURE_STORAGE_CONNECTION_STRING;
 const AZURE_CONTAINER_NAME = process.env.AZURE_CONTAINER_NAME;
-const GOOGLE_SERVICE_ACCOUNT_CREDENTIALS = process.env.GOOGLE_SERVICE_ACCOUNT_CREDENTIALS;
-const GOOGLE_FOLDER_ID = process.env.GOOGLE_FOLDER_ID;
+// VAMOS USAR ESTAS NOVAS VARIÁVEIS DE AMBIENTE:
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+const GOOGLE_REFRESH_TOKEN = process.env.GOOGLE_REFRESH_TOKEN; 
+// const GOOGLE_SERVICE_ACCOUNT_CREDENTIALS = process.env.GOOGLE_SERVICE_ACCOUNT_CREDENTIALS; // (Antiga Service Account)
+const GOOGLE_FOLDER_ID = process.env.GOOGLE_FOLDER_ID; // Mantida
 const DRIVE_SCOPE = ['https://www.googleapis.com/auth/drive'];
 
 // Configuração de Autenticação Azure
@@ -34,24 +37,24 @@ app.use(express.json());
 
 // --- FUNÇÕES DE SERVIÇO ---
 
-/**
- * @function getGoogleAuth
- * @description Configura e retorna o cliente JWT para autenticação no Google Drive.
- */
-function getGoogleAuth() {
-    let creds;
-    try {
-        creds = JSON.parse(GOOGLE_SERVICE_ACCOUNT_CREDENTIALS);
-    } catch (e) {
-        throw new Error("Credenciais do Google Drive inválidas ou ausentes.");
+function getGoogleOAuthClient() {
+    if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET || !GOOGLE_REFRESH_TOKEN) {
+        throw new Error("Credenciais OAuth 2.0 incompletas. Verifique GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET e GOOGLE_REFRESH_TOKEN no .env.");
     }
-
-    return new google.auth.JWT(
-        creds.client_email,
-        null,
-        creds.private_key,
-        DRIVE_SCOPE,
+    
+    // Cria o cliente OAuth2 com ID e Secret
+    const auth = new OAuth2Client(
+        GOOGLE_CLIENT_ID,
+        GOOGLE_CLIENT_SECRET
     );
+
+    // Define o Refresh Token, que o cliente usará para obter novos Access Tokens.
+    auth.setCredentials({
+        refresh_token: GOOGLE_REFRESH_TOKEN
+    });
+
+    console.log("[Google Drive] Usando Autenticação OAuth 2.0 (Refresh Token).");
+    return auth;
 }
 
 /**
@@ -94,7 +97,7 @@ async function ensureContainerExists(containerName) {
  * @description Lista arquivos de uma pasta específica no Google Drive.
  */
 async function listarGoogleDrive() {
-    const auth = getGoogleAuth();
+    const auth = getGoogleOAuthClient(); 
     const drive = google.drive({ version: 'v3', auth });
 
     const response = await drive.files.list({
@@ -146,7 +149,7 @@ async function transferirArquivo(fileId, fileName) {
     // 1. Garante que o container existe antes de tentar o upload
     await ensureContainerExists(AZURE_CONTAINER_NAME);
     
-    const auth = getGoogleAuth();
+    const auth = getGoogleOAuthClient(); 
     const drive = google.drive({ version: 'v3', auth });
 
     const containerClient = blobServiceClient.getContainerClient(AZURE_CONTAINER_NAME);

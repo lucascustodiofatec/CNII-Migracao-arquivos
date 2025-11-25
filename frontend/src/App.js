@@ -5,14 +5,10 @@ import FileTable from './FileTable';
 import './App.css';
 
 // URL de base para as chamadas API
-/**const BACKEND_URL = process.env.NODE_ENV === 'development' 
-    ? 'http://localhost:5000/api' 
-    : process.env.REACT_APP_BACKEND_URL; **/
-const CODESPACE_BACKEND_URL = 'https://orange-winner-q7v75qv4q7p93xww4-5000.app.github.dev/api'; 
-
 const BACKEND_URL = process.env.NODE_ENV === 'development' 
-    ? CODESPACE_BACKEND_URL 
-    : process.env.REACT_APP_BACKEND_URL;
+    ? 'http://localhost:5000/api' 
+    : process.env.REACT_APP_BACKEND_URL; 
+
 function App() {
     const [driveFiles, setDriveFiles] = useState([]);
     const [blobFiles, setBlobFiles] = useState([]);
